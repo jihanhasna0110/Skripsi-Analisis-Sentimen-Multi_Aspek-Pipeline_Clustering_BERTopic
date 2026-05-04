@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MySiloam — Analisis Sentimen Berbasis Aspek</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+<style>
+:root {
+  --navy:    #1a2e6e;
+  --navy2:   #243580;
+  --green:   #2ecc71;
+  --green2:  #27ae60;
+  --blue:    #2980b9;
+  --blue2:   #3498db;
+  --red:     #e74c3c;
+  --yellow:  #f1c40f;
+  --white:   #ffffff;
+  --gray50:  #f8fafc;
+  --gray100: #f1f5f9;
+  --gray200: #e2e8f0;
+  --gray400: #94a3b8;
+  --gray600: #475569;
+  --gray800: #1e293b;
+  --radius:  14px;
+  --shadow:  0 4px 24px rgba(26,46,110,0.10);
+  --shadow2: 0 8px 40px rgba(26,46,110,0.15);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--gray50);
+  color: var(--gray800);
+  overflow-x: hidden;
+}
+
+/* ══ NAVBAR ══ */
+.navbar {
+  position: fixed; top:0; left:0; right:0; z-index:100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 64px;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--gray200);
+  box-shadow: 0 2px 16px rgba(26,46,110,0.07);
+}
+.nav-brand { display: flex; align-items: center; gap: 10px; }
+.nav-logo {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--navy), var(--blue2));
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800; font-size: 14px; color: white; letter-spacing: -0.5px;
+}
+.nav-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px; color: var(--navy); }
+.nav-name span { color: var(--green2); }
+.nav-links { display: flex; align-items: center; gap: 8px; }
+.nav-link {
+  padding: 8px 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--gray600);
+  cursor: pointer; transition: all 0.2s; border: none; background: none; text-decoration: none;
+}
+.nav-link:hover { background: var(--gray100); color: var(--navy); }
+.nav-link.active { background: var(--navy); color: white; }
+
+/* ══ HERO ══ */
+.hero {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 40%, #1a4a8a 100%);
+  display: flex; align-items: center;
+  padding: 100px 40px 60px;
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; top: -100px; right: -100px;
+  width: 600px; height: 600px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(46,204,113,0.12) 0%, transparent 70%);
+}
+.hero::after {
+  content: ''; position: absolute; bottom: -150px; left: -150px;
+  width: 500px; height: 500px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(41,128,185,0.15) 0%, transparent 70%);
+}
+.hero-grid {
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 60px; align-items: center; position: relative; z-index: 1;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(46,204,113,0.15); border: 1px solid rgba(46,204,113,0.3);
+  color: var(--green); padding: 6px 14px; border-radius: 100px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 20px;
+}
+.hero-badge::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green); animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity:1; transform: scale(1); }
+  50%       { opacity:0.5; transform: scale(1.3); }
+}
+.hero-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 48px; font-weight: 800; line-height: 1.15;
+  color: white; margin-bottom: 20px;
+}
+.hero-title .accent { color: var(--green); }
+.hero-desc {
+  font-size: 16px; line-height: 1.8;
+  color: rgba(255,255,255,0.75); margin-bottom: 36px; max-width: 460px;
+}
+.hero-cta { display: flex; gap: 14px; flex-wrap: wrap; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 28px; border-radius: 10px;
+  background: var(--green2); color: white;
+  font-size: 15px; font-weight: 600; border: none; cursor: pointer;
+  transition: all 0.2s; text-decoration: none;
+  box-shadow: 0 4px 20px rgba(39,174,96,0.35);
+}
+.btn-primary:hover { background: var(--green); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(39,174,96,0.4); }
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 28px; border-radius: 10px;
+  background: transparent; color: white; font-size: 15px; font-weight: 600;
+  border: 1.5px solid rgba(255,255,255,0.35); cursor: pointer; transition: all 0.2s; text-decoration: none;
+}
+.btn-outline:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.6); }
+.hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.stat-card {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius); padding: 24px; backdrop-filter: blur(8px); transition: all 0.3s;
+}
+.stat-card:hover { background: rgba(255,255,255,0.12); transform: translateY(-3px); }
+.stat-card.accent {
+  background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(46,204,113,0.05));
+  border-color: rgba(46,204,113,0.3); grid-column: span 2;
+}
+.stat-icon { font-size: 28px; margin-bottom: 10px; }
+.stat-num { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 32px; font-weight: 800; color: white; }
+.stat-label { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+.stat-aspek { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.aspek-tag {
+  background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+}
+
+/* ══ TENTANG ══ */
+.section { padding: 80px 40px; max-width: 1100px; margin: 0 auto; }
+.section-label {
+  font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--green2); text-transform: uppercase; margin-bottom: 12px;
+}
+.section-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 36px; font-weight: 800; color: var(--navy);
+  margin-bottom: 16px; line-height: 1.2;
+}
+.section-desc { font-size: 15px; line-height: 1.8; color: var(--gray600); max-width: 600px; }
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin-top: 48px; }
+.about-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.about-card {
+  background: white; border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow);
+  border: 1px solid var(--gray200); transition: all 0.3s;
+}
+.about-card:hover { transform: translateY(-4px); box-shadow: var(--shadow2); }
+.about-card .icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; margin-bottom: 12px;
+}
+.about-card .icon.blue  { background: #dbeafe; }
+.about-card .icon.green { background: #dcfce7; }
+.about-card .icon.red   { background: #fee2e2; }
+.about-card .icon.yellow{ background: #fef9c3; }
+.about-card h4 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.about-card p { font-size: 12px; color: var(--gray600); line-height: 1.6; }
+.flow-steps { display: flex; flex-direction: column; gap: 0; }
+.flow-step { display: flex; gap: 16px; align-items: flex-start; padding: 16px 0; }
+.flow-step:not(:last-child) { border-bottom: 1px dashed var(--gray200); }
+.step-num {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--navy), var(--blue2));
+  color: white; font-weight: 700; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.step-info h5 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+.step-info p { font-size: 13px; color: var(--gray600); line-height: 1.6; }
+
+/* ══ ANALISIS ══ */
+.analisis-section {
+  background: white; border-top: 1px solid var(--gray200);
+  border-bottom: 1px solid var(--gray200); padding: 80px 40px;
+}
+.analisis-inner { max-width: 1100px; margin: 0 auto; }
+.tabs-wrapper {
+  background: var(--gray100); padding: 6px; border-radius: 12px;
+  display: inline-flex; margin-bottom: 32px; gap: 8px;
+}
+.tab-btn {
+  padding: 10px 24px; border: none; border-radius: 8px;
+  cursor: pointer; font-size: 14px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s; color: var(--gray600); background: transparent;
+}
+.tab-btn.active { background: white; color: var(--navy); box-shadow: 0 2px 8px rgba(26,46,110,0.12); }
+.input-card {
+  background: var(--gray50); border: 1.5px solid var(--gray200);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+}
+textarea {
+  width: 100%; padding: 16px; border: 1.5px solid var(--gray200);
+  border-radius: 10px; font-size: 14px; resize: vertical; min-height: 130px;
+  font-family: 'DM Sans', sans-serif; color: var(--gray800); background: white;
+  transition: border-color 0.2s;
+}
+textarea:focus { outline: none; border-color: var(--navy); }
+textarea::placeholder { color: var(--gray400); }
+.upload-area {
+  border: 2px dashed var(--gray200); border-radius: 12px;
+  padding: 48px 20px; text-align: center; cursor: pointer;
+  transition: all 0.2s; background: white;
+}
+.upload-area:hover { border-color: var(--navy); background: var(--gray50); }
+.upload-icon { font-size: 48px; margin-bottom: 12px; }
+.upload-area h4 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.upload-area p { font-size: 13px; color: var(--gray400); }
+.upload-area .file-name { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--green2); }
+#fileInput { display: none; }
+.btn-analisis {
+  width: 100%; padding: 15px;
+  background: linear-gradient(135deg, var(--navy), var(--blue2));
+  color: white; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer; margin-top: 16px; transition: all 0.2s;
+  letter-spacing: 0.3px; box-shadow: 0 4px 16px rgba(26,46,110,0.25);
+}
+.btn-analisis:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,46,110,0.35); }
+.btn-analisis:active { transform: translateY(0); }
+.loading { display: none; text-align: center; padding: 32px; }
+.loading-spinner {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--gray200); border-top-color: var(--navy);
+  animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading p { color: var(--gray600); font-size: 14px; }
+.hasil-card {
+  display: none; background: white; border-radius: var(--radius);
+  border: 1px solid var(--gray200); box-shadow: var(--shadow);
+  overflow: hidden; margin-top: 20px;
+}
+.hasil-header {
+  background: linear-gradient(135deg, var(--navy), var(--navy2));
+  padding: 20px 28px; display: flex; align-items: center; gap: 12px;
+}
+.hasil-header h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 700; color: white; }
+.hasil-header .icon { font-size: 20px; }
+.hasil-body { padding: 28px; }
+.table-wrapper { overflow-x: auto; border-radius: 10px; border: 1px solid var(--gray200); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { background: var(--gray50); }
+th {
+  padding: 12px 16px; text-align: left;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 12px; font-weight: 700; color: var(--gray600);
+  letter-spacing: 0.5px; text-transform: uppercase;
+  border-bottom: 1px solid var(--gray200);
+}
+td { padding: 12px 16px; border-bottom: 1px solid var(--gray100); color: var(--gray800); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--gray50); }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 12px; border-radius: 100px;
+  font-size: 12px; font-weight: 700;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.badge::before { content:''; width:6px; height:6px; border-radius:50%; }
+.badge.Positif  { background:#dcfce7; color:#15803d; }
+.badge.Positif::before  { background:#15803d; }
+.badge.Negatif  { background:#fee2e2; color:#b91c1c; }
+.badge.Negatif::before  { background:#b91c1c; }
+.badge.Netral   { background:#fef9c3; color:#92400e; }
+.badge.Netral::before   { background:#d97706; }
+.kesimpulan-box {
+  background: linear-gradient(135deg, #f0f7ff, #e8f5e9);
+  border: 1px solid var(--gray200); border-left: 4px solid var(--navy);
+  border-radius: 10px; padding: 20px 24px; margin-top: 20px;
+}
+.kesimpulan-box strong {
+  display: block; font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 8px;
+}
+.kesimpulan-box span { font-size: 14px; color: var(--gray600); line-height: 1.8; }
+.charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+.chart-box { background: var(--gray50); border-radius: 12px; padding: 20px; border: 1px solid var(--gray200); }
+.chart-box h4 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 16px; text-align: center; }
+.chart-container { height: 260px; position: relative; }
+
+/* ══ FOOTER ══ */
+footer { background: var(--navy); padding: 40px; text-align: center; }
+footer p { color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.8; }
+footer strong { color: rgba(255,255,255,0.85); }
+
+/* ══ ANIMASI ══ */
+.fade-up { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.fade-up.visible { opacity: 1; transform: translateY(0); }
+
+/* ══ RESPONSIVE ══ */
+@media (max-width: 768px) {
+  .hero-grid, .about-grid, .charts-row { grid-template-columns: 1fr; }
+  .hero-title { font-size: 32px; }
+  .navbar { padding: 0 20px; }
+  .hero, .section, .analisis-section { padding-left: 20px; padding-right: 20px; }
+  .hero-stats { grid-template-columns: 1fr 1fr; }
+  .wc-grid { grid-template-columns: 1fr; }
+}
+
+/* ══ WORD CLOUD ══ */
+.wc-section { margin-top: 32px; }
+.wc-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: var(--navy); margin: 0 0 4px; }
+.wc-subtitle { font-size: 12px; color: var(--gray400); margin-bottom: 16px; }
+.wc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.wc-card {
+  background: white; border-radius: 12px; border: 1px solid var(--gray200);
+  padding: 0; box-shadow: var(--shadow); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.wc-card-header {
+  padding: 14px 16px 10px; border-bottom: 1px solid var(--gray100); background: var(--gray50);
+}
+.wc-card-header h5 {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: var(--navy);
+  margin: 0 0 2px; display: flex; align-items: center; gap: 6px;
+}
+.wc-card-header .wc-sub { font-size: 11px; color: var(--gray400); margin: 0; }
+.wc-canvas-wrap {
+  width: 100%; height: 220px; position: relative;
+  background: #fff8f8; overflow: hidden; flex: 1;
+}
+.wc-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--gray400); font-size: 13px;
+  flex-direction: column; gap: 6px;
+}
+.wc-empty span { font-size: 22px; }
+</style>
+</head>
+<body>
+
+<!-- ══ NAVBAR ══ -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <div class="nav-logo">MS</div>
+    <div class="nav-name">My<span>Siloam</span></div>
+  </div>
+  <div class="nav-links">
+    <a href="#beranda" class="nav-link active">Beranda</a>
+    <a href="#tentang" class="nav-link">Tentang</a>
+    <a href="#analisis" class="nav-link">Analisis</a>
+  </div>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section class="hero" id="beranda">
+  <div class="hero-grid">
+    <div>
+      <div class="hero-badge">🔬 NLP · SVM · Multi-Aspek</div>
+      <h1 class="hero-title">
+        Analisis Sentimen<br>
+        <span class="accent">Berbasis Aspek</span><br>
+        Aplikasi MySiloam
+      </h1>
+      <p class="hero-desc">
+        Sistem cerdas untuk mengidentifikasi sentimen ulasan pengguna
+        berdasarkan 3 aspek utama menggunakan metode
+        <strong style="color:rgba(255,255,255,0.9)">Support Vector Machine (SVM) One-vs-One</strong>
+        dengan akurasi hingga 93%.
+      </p>
+      <div class="hero-cta">
+        <a href="#analisis" class="btn-primary">🚀 Mulai Analisis</a>
+        <a href="#tentang" class="btn-outline">📖 Pelajari Lebih</a>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-num">93%</div>
+        <div class="stat-label">Akurasi Tertinggi<br>Sentimen</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-num">1.699</div>
+        <div class="stat-label">Data Ulasan<br>Terlatih</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-num">6</div>
+        <div class="stat-label">Model SVM<br>Aktif</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-icon">🏥</div>
+        <div class="stat-num" style="font-size:20px">3 Aspek Analisis</div>
+        <div class="stat-aspek">
+          <span class="aspek-tag">🩺 Fitur Medis</span>
+          <span class="aspek-tag">💊 Pelayanan</span>
+          <span class="aspek-tag">⚙️ Teknis App</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ TENTANG ══ -->
+<div id="tentang" style="background:white; border-top: 1px solid var(--gray200);">
+<div class="section">
+  <div class="fade-up">
+    <div class="section-label">Tentang Sistem</div>
+    <h2 class="section-title">Bagaimana Sistem Ini Bekerja?</h2>
+    <p class="section-desc">
+      Sistem menggunakan pendekatan pipeline 2 tahap per aspek —
+      pertama mengidentifikasi relevansi ulasan, lalu menentukan sentimen secara akurat.
+    </p>
+  </div>
+  <div class="about-grid fade-up">
+    <div class="about-cards">
+      <div class="about-card">
+        <div class="icon blue">🩺</div>
+        <h4>Fitur Medis Aplikasi</h4>
+        <p>Analisis ulasan terkait booking dokter, jadwal, telemedicine, dan fitur medis lainnya.</p>
+      </div>
+      <div class="about-card">
+        <div class="icon green">💊</div>
+        <h4>Pelayanan & Kepuasan</h4>
+        <p>Analisis ulasan terkait pelayanan dokter, perawat, administrasi, dan kepuasan pasien.</p>
+      </div>
+      <div class="about-card">
+        <div class="icon red">⚙️</div>
+        <h4>Teknis Aplikasi</h4>
+        <p>Analisis ulasan terkait performa, kecepatan, bug, dan aspek teknis aplikasi.</p>
+      </div>
+      <div class="about-card">
+        <div class="icon yellow">📈</div>
+        <h4>Output Sentimen</h4>
+        <p>Setiap aspek menghasilkan label Positif, Negatif, atau Netral secara independen.</p>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:700; color:var(--navy); margin-bottom:20px">Alur Analisis</h3>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-info"><h5>Input Ulasan</h5><p>Masukkan teks ulasan pengguna atau upload file CSV berisi banyak ulasan sekaligus.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-info"><h5>Preprocessing</h5><p>Teks diproses melalui stemming (PySastrawi) dan transformasi TF-IDF.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-info"><h5>Klasifikasi Relevansi</h5><p>Model SVM menentukan apakah ulasan relevan terhadap setiap aspek.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-info"><h5>Klasifikasi Sentimen</h5><p>Untuk ulasan relevan, model SVM menentukan sentimen Positif / Negatif / Netral.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="step-num">5</div>
+          <div class="step-info"><h5>Visualisasi Hasil</h5><p>Hasil ditampilkan dalam tabel, grafik distribusi, dan kesimpulan otomatis.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ ANALISIS ══ -->
+<div class="analisis-section" id="analisis">
+<div class="analisis-inner">
+  <div class="fade-up" style="margin-bottom:32px">
+    <div class="section-label">Mulai Analisis</div>
+    <h2 class="section-title">Analisis Sentimen Ulasan</h2>
+    <p class="section-desc">Pilih mode input: ketik ulasan langsung atau upload file CSV untuk analisis massal.</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-wrapper">
+    <button class="tab-btn active" onclick="switchTab('komentar')">✍️ Unggah Komentar</button>
+    <button class="tab-btn" onclick="switchTab('csv')">📂 Unggah CSV</button>
+  </div>
+
+  <!-- TAB 1: Komentar -->
+  <div id="tab-komentar">
+    <div class="input-card">
+      <label style="display:block; font-size:13px; font-weight:600; color:var(--gray600); margin-bottom:8px">
+        Tulis ulasan pengguna MySiloam
+      </label>
+      <textarea id="inputTeks" placeholder="Contoh: fitur booking dokternya mudah banget tapi pelayanannya masih lambat dan aplikasinya sering error..."></textarea>
+      <button class="btn-analisis" onclick="analisirTeks()">🔍 Analisis Sekarang</button>
+    </div>
+    <div class="loading" id="loading-teks">
+      <div class="loading-spinner"></div>
+      <p>Menganalisis ulasan...</p>
+    </div>
+    <div class="hasil-card" id="hasil-teks">
+      <div class="hasil-header"><span class="icon">📋</span><h3>Hasil Analisis Sentimen</h3></div>
+      <div class="hasil-body">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>No.</th><th>Kalimat</th><th>Aspek</th><th>Sentimen</th></tr></thead>
+            <tbody id="tabel-teks"></tbody>
+          </table>
+        </div>
+        <div class="kesimpulan-box">
+          <strong>💡 Kesimpulan</strong>
+          <span id="isi-kesimpulan-teks"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: CSV -->
+  <div id="tab-csv" style="display:none">
+    <div class="input-card">
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📂</div>
+        <h4>Klik untuk Unggah File CSV</h4>
+        <p>Format: .csv dengan kolom bernama <strong>ulasan</strong> / <strong>komentar</strong> / <strong>review</strong></p>
+        <div class="file-name" id="namaFile"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv" onchange="tampilkanNamaFile()">
+      <button class="btn-analisis" onclick="analisirCSV()">🔍 Analisis CSV</button>
+    </div>
+    <div class="loading" id="loading-csv">
+      <div class="loading-spinner"></div>
+      <p>Memproses file CSV, mohon tunggu...</p>
+    </div>
+
+    <div class="hasil-card" id="hasil-csv">
+      <div class="hasil-header"><span class="icon">📊</span><h3>Hasil Analisis CSV</h3></div>
+      <div class="hasil-body">
+        <!-- Charts -->
+        <div class="charts-row">
+          <div class="chart-box">
+            <h4>📊 Distribusi Sentimen per Aspek</h4>
+            <div class="chart-container"><canvas id="chartAspek"></canvas></div>
+          </div>
+          <div class="chart-box">
+            <h4>🥧 Proporsi Sentimen Keseluruhan</h4>
+            <div class="chart-container"><canvas id="chartPie"></canvas></div>
+          </div>
+        </div>
+        <!-- Kesimpulan -->
+        <div class="kesimpulan-box" style="margin-bottom:24px">
+          <strong>💡 Kesimpulan</strong>
+          <span id="isi-kesimpulan-csv"></span>
+        </div>
+        <!-- Word Cloud -->
+        <div class="wc-section" id="wc-section" style="display:none">
+          <h4 class="wc-title">☁️ Word Cloud Ulasan Negatif per Aspek</h4>
+          <p class="wc-subtitle">Kata yang lebih besar = lebih sering muncul di ulasan negatif</p>
+          <div class="wc-grid">
+            <div class="wc-card">
+              <div class="wc-card-header">
+                <h5>🩺 Fitur Medis Aplikasi</h5>
+                <div class="wc-sub">Kata paling sering di ulasan negatif</div>
+              </div>
+              <div class="wc-canvas-wrap" id="wrap-aspek1"><canvas id="wc-aspek1"></canvas></div>
+            </div>
+            <div class="wc-card">
+              <div class="wc-card-header">
+                <h5>💊 Pelayanan & Kepuasan</h5>
+                <div class="wc-sub">Kata paling sering di ulasan negatif</div>
+              </div>
+              <div class="wc-canvas-wrap" id="wrap-aspek2"><canvas id="wc-aspek2"></canvas></div>
+            </div>
+            <div class="wc-card">
+              <div class="wc-card-header">
+                <h5>⚙️ Teknis Aplikasi</h5>
+                <div class="wc-sub">Kata paling sering di ulasan negatif</div>
+              </div>
+              <div class="wc-canvas-wrap" id="wrap-aspek3"><canvas id="wc-aspek3"></canvas></div>
+            </div>
+          </div>
+        </div>
+        <!-- Tabel -->
+        <h4 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:700; color:var(--navy); margin-top:36px; margin-bottom:12px">📋 Sentimen per Komentar</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>No.</th><th>Ulasan Asli</th><th>Kalimat</th><th>Aspek</th><th>Sentimen</th></tr>
+            </thead>
+            <tbody id="tabel-csv"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <p>
+    <strong>Sistem Analisis Sentimen Berbasis Aspek — Aplikasi MySiloam</strong><br>
+    Menggunakan metode Support Vector Machine (SVM) One-vs-One · PySastrawi · TF-IDF<br>
+    <span style="font-size:12px; opacity:0.5; margin-top:8px; display:block">© 2025 · Skripsi · Analisis Sentimen Multi-Aspek</span>
+  </p>
+</footer>
+
+<script>
+// ══ Navbar scroll active ══
+window.addEventListener('scroll', () => {
+  const sections = ['beranda','tentang','analisis'];
+  const links    = document.querySelectorAll('.nav-link');
+  let current    = 'beranda';
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && window.scrollY >= el.offsetTop - 100) current = id;
+  });
+  links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + current));
+});
+
+// ══ Fade up ══
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// ══ Tab Switch ══
+function switchTab(tab) {
+  document.getElementById('tab-komentar').style.display = tab === 'komentar' ? 'block' : 'none';
+  document.getElementById('tab-csv').style.display      = tab === 'csv'      ? 'block' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === (tab === 'komentar' ? 0 : 1));
+  });
+}
+
+// ══ Nama File ══
+function tampilkanNamaFile() {
+  const file = document.getElementById('fileInput').files[0];
+  if (file) document.getElementById('namaFile').textContent = '✅ ' + file.name;
+}
+
+// ══ Badge ══
+function badge(sen) {
+  return `<span class="badge ${sen}">${sen}</span>`;
+}
+
+// ══ Analisis Teks ══
+async function analisirTeks() {
+  const teks = document.getElementById('inputTeks').value.trim();
+  if (!teks) return alert('Masukkan teks ulasan terlebih dahulu!');
+
+  document.getElementById('loading-teks').style.display = 'block';
+  document.getElementById('hasil-teks').style.display   = 'none';
+
+  try {
+    const res  = await fetch('/predict/text', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ teks })
+    });
+    const data = await res.json();
+
+    document.getElementById('loading-teks').style.display = 'none';
+
+    const tbody = document.getElementById('tabel-teks');
+    tbody.innerHTML = '';
+    if (!data.rows || data.rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gray400);padding:24px">Tidak ada aspek yang terdeteksi dari ulasan ini.</td></tr>';
+    } else {
+      data.rows.forEach((r, i) => {
+        tbody.innerHTML += `<tr>
+          <td style="font-weight:600;color:var(--gray400)">${i+1}</td>
+          <td>${r.kalimat}</td>
+          <td><span style="font-weight:600;color:var(--navy)">${r.aspek}</span></td>
+          <td>${badge(r.sentimen)}</td>
+        </tr>`;
+      });
+    }
+    document.getElementById('isi-kesimpulan-teks').textContent = data.kesimpulan;
+    document.getElementById('hasil-teks').style.display = 'block';
+  } catch(e) {
+    document.getElementById('loading-teks').style.display = 'none';
+    alert('Terjadi kesalahan: ' + e.message);
+  }
+}
+
+// ══ Analisis CSV ══
+let chartAspek = null;
+let chartPie   = null;
+
+async function analisirCSV() {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) return alert('Pilih file CSV terlebih dahulu!');
+
+  document.getElementById('loading-csv').style.display = 'block';
+  document.getElementById('hasil-csv').style.display   = 'none';
+  document.getElementById('wc-section').style.display  = 'none';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res  = await fetch('/predict/csv', { method:'POST', body: formData });
+    const data = await res.json();
+
+    document.getElementById('loading-csv').style.display = 'none';
+
+    if (data.error) {
+      alert('Error dari server: ' + data.error);
+      return;
+    }
+
+    const warna = { Positif:'#27ae60', Negatif:'#e74c3c', Netral:'#f1c40f' };
+
+    // ── Chart Bar ──
+    const aspekLabels   = Object.keys(data.aspek_count);
+    const sentimenTypes = ['Positif','Negatif','Netral'];
+
+    if (chartAspek) chartAspek.destroy();
+    chartAspek = new Chart(document.getElementById('chartAspek'), {
+      type: 'bar',
+      plugins: [ChartDataLabels],
+      data: {
+        labels: aspekLabels,
+        datasets: sentimenTypes.map(sen => ({
+          label           : sen,
+          data            : aspekLabels.map(a => data.aspek_count[a][sen] || 0),
+          backgroundColor : warna[sen],
+          borderRadius    : 6,
+          borderSkipped   : false,
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position:'bottom', labels:{ font:{size:12}, padding:16 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} ulasan` } },
+          datalabels: {
+            anchor   : 'end',
+            align    : 'end',
+            color    : '#1e293b',
+            font     : { size: 11, weight: '700', family: 'Plus Jakarta Sans' },
+            formatter: val => val > 0 ? val : '',
+            padding  : { bottom: 2 },
+          }
+        },
+        scales: {
+          x: { grid:{ display:false }, ticks:{ font:{size:11} } },
+          y: {
+            beginAtZero:true,
+            ticks:{ stepSize:1, precision:0 },
+            title:{ display:true, text:'Jumlah Ulasan', font:{size:11} },
+            grid:{ color:'rgba(0,0,0,0.05)' }
+          }
+        },
+        layout: { padding: { top: 20 } },
+      }
+    });
+
+    // ── Chart Pie ──
+    const pieLabels = ['Positif','Negatif','Netral'].filter(s => data.sentimen_count[s]);
+    const pieData   = pieLabels.map(s => data.sentimen_count[s] || 0);
+    const total     = pieData.reduce((a,b) => a+b, 0);
+
+    // Plugin custom: angka total di tengah donut
+    const centerTextPlugin = {
+      id: 'centerText',
+      afterDraw(chart) {
+        const { ctx, chartArea: { left, top, right, bottom } } = chart;
+        const cx = (left + right) / 2;
+        const cy = (top + bottom) / 2;
+        ctx.save();
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = '#1a2e6e';
+        ctx.font         = 'bold 24px Plus Jakarta Sans, sans-serif';
+        ctx.fillText(total, cx, cy - 10);
+        ctx.fillStyle    = '#94a3b8';
+        ctx.font         = '11px DM Sans, sans-serif';
+        ctx.fillText('total ulasan', cx, cy + 12);
+        ctx.restore();
+      }
+    };
+
+    if (chartPie) chartPie.destroy();
+    chartPie = new Chart(document.getElementById('chartPie'), {
+      type: 'doughnut',
+      plugins: [ChartDataLabels, centerTextPlugin],
+      data: {
+        labels: pieLabels,
+        datasets: [{
+          data: pieData,
+          backgroundColor: pieLabels.map(s => warna[s]),
+          borderWidth: 3, borderColor: '#fff', hoverOffset: 8,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '58%',
+        plugins: {
+          legend: { position:'bottom', labels:{ font:{size:12}, padding:14 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const pct = ((ctx.raw / total) * 100).toFixed(1);
+                return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+              }
+            }
+          },
+          datalabels: {
+            color    : '#fff',
+            font     : { size: 12, weight: '700', family: 'Plus Jakarta Sans' },
+            formatter: (val) => {
+              const pct = ((val / total) * 100).toFixed(0);
+              return pct >= 8 ? `${val}\n(${pct}%)` : '';
+            },
+            textAlign: 'center',
+          }
+        }
+      }
+    });
+
+    // ── Kesimpulan ──
+    const aspekDominan = {};
+    Object.entries(data.aspek_count).forEach(([aspek, obj]) => {
+      let max=0, dominan='-';
+      Object.entries(obj).forEach(([sen,jml]) => { if(jml>max){max=jml;dominan=sen;} });
+      aspekDominan[aspek] = dominan;
+    });
+    const positifAspek  = Object.entries(aspekDominan).filter(([,v])=>v==='Positif').map(([k])=>k);
+    const negatifAspek  = Object.entries(aspekDominan).filter(([,v])=>v==='Negatif').map(([k])=>k);
+    const dominanGlobal = pieLabels.reduce((a,b) => (data.sentimen_count[a]||0) >= (data.sentimen_count[b]||0) ? a : b);
+
+    let kes = `Berdasarkan analisis terhadap ${total} ulasan relevan, `;
+    if (positifAspek.length) kes += `aspek ${positifAspek.join(' dan ')} mendominasi sentimen positif`;
+    if (negatifAspek.length) kes += `${positifAspek.length?', sedangkan ':''}aspek ${negatifAspek.join(' dan ')} mendominasi sentimen negatif`;
+    kes += `. Secara keseluruhan sentimen ${dominanGlobal.toLowerCase()} paling banyak ditemukan`;
+    if (negatifAspek.length) kes += `. Aspek ${negatifAspek.join(' dan ')} perlu mendapat perhatian lebih untuk ditingkatkan`;
+    kes += '.';
+    document.getElementById('isi-kesimpulan-csv').textContent = kes;
+
+    // ── Tabel grouped ──
+    const tbody = document.getElementById('tabel-csv');
+    tbody.innerHTML = '';
+    const grouped = {};
+    data.rows.forEach(r => {
+      const key = r.ulasan_asli || r.kalimat;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(r);
+    });
+    let no = 1;
+    Object.entries(grouped).forEach(([ulasan, items]) => {
+      items.forEach((r, i) => {
+        const isFirst = i === 0;
+        tbody.innerHTML += `<tr>
+          ${isFirst ? `<td rowspan="${items.length}" style="vertical-align:top;font-weight:700;color:var(--gray400);width:40px">${no}</td>` : ''}
+          ${isFirst ? `<td rowspan="${items.length}" style="vertical-align:top;font-size:12px;color:var(--gray600);max-width:220px;line-height:1.5">${ulasan}</td>` : ''}
+          <td style="font-size:13px">${r.kalimat}</td>
+          <td style="font-size:13px;font-weight:600;color:var(--navy)">${r.aspek}</td>
+          <td>${badge(r.sentimen)}</td>
+        </tr>`;
+      });
+      no++;
+    });
+
+    // ── Tampilkan hasil dulu, baru render word cloud ──
+    // PENTING: hasil-csv harus display:block SEBELUM render word cloud
+    // agar canvas punya offsetWidth/offsetHeight yang valid
+    document.getElementById('hasil-csv').style.display = 'block';
+
+    // ── Word Cloud (setelah hasil visible) ──
+    if (data.wordcloud) {
+      document.getElementById('wc-section').style.display = 'block';
+
+      const aspekMap = {
+        'Fitur Medis Aplikasi' : { canvasId: 'wc-aspek1', wrapId: 'wrap-aspek1' },
+        'Pelayanan & Kepuasan' : { canvasId: 'wc-aspek2', wrapId: 'wrap-aspek2' },
+        'Teknis Aplikasi'      : { canvasId: 'wc-aspek3', wrapId: 'wrap-aspek3' },
+      };
+
+      const merahPalette = [
+        '#c0392b','#e74c3c','#e55039','#cb4335',
+        '#cd6155','#ec7063','#f1948a','#922b21',
+        '#a93226','#d98880',
+      ];
+
+      // setTimeout agar browser sempat melakukan layout/paint
+      // sehingga offsetWidth & offsetHeight sudah bernilai benar
+      setTimeout(() => {
+        Object.entries(aspekMap).forEach(([aspekNama, ids]) => {
+          const wrap   = document.getElementById(ids.wrapId);
+          const canvas = document.getElementById(ids.canvasId);
+          const words  = (data.wordcloud && data.wordcloud[aspekNama]) || [];
+
+          if (!wrap || !canvas) return;
+
+          if (words.length === 0) {
+            wrap.innerHTML = '<div class="wc-empty"><span>😊</span>Tidak ada ulasan negatif</div>';
+            return;
+          }
+
+          // Ambil ukuran setelah elemen visible
+          const w = wrap.offsetWidth  || 300;
+          const h = wrap.offsetHeight || 200;
+          canvas.width  = w;
+          canvas.height = h;
+
+          const maxVal = Math.max(...words.map(wrd => wrd.value));
+          const list   = words.map(wrd => [
+            wrd.text,
+            Math.round(14 + (wrd.value / maxVal) * 38)
+          ]);
+
+          try {
+            WordCloud(canvas, {
+              list            : list,
+              gridSize        : 8,
+              weightFactor    : 1,
+              fontFamily      : 'Plus Jakarta Sans, sans-serif',
+              fontWeight      : '700',
+              color           : () => merahPalette[Math.floor(Math.random() * merahPalette.length)],
+              backgroundColor : '#fff8f8',
+              rotateRatio     : 0.3,
+              rotationSteps   : 2,
+              shuffle         : true,
+              drawOutOfBound  : false,
+              shrinkToFit     : true,
+            });
+          } catch(err) {
+            console.error('WordCloud error pada aspek:', aspekNama, err);
+            wrap.innerHTML = '<div class="wc-empty">Gagal render word cloud</div>';
+          }
+        });
+      }, 300);
+
+    } else {
+      document.getElementById('wc-section').style.display = 'none';
+    }
+
+  } catch(e) {
+    document.getElementById('loading-csv').style.display = 'none';
+    console.error(e);
+    alert('Terjadi kesalahan: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>
